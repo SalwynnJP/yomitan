@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en" data-page-type="search">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Yomitan Search</title>
+    <link rel="icon" type="image/png" href="/images/icon16.png" sizes="16x16">
+    <link rel="icon" type="image/png" href="/images/icon19.png" sizes="19x19">
+    <link rel="icon" type="image/png" href="/images/icon32.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="/images/icon38.png" sizes="38x38">
+    <link rel="icon" type="image/png" href="/images/icon48.png" sizes="48x48">
+    <link rel="icon" type="image/png" href="/images/icon64.png" sizes="64x64">
+    <link rel="icon" type="image/png" href="/images/icon128.png" sizes="128x128">
+    <link rel="stylesheet" type="text/css" href="/css/material.css">
+    <link rel="stylesheet" type="text/css" href="/css/display.css">
+    <link rel="stylesheet" type="text/css" href="/css/display-pronunciation.css">
+    <link rel="stylesheet" type="text/css" href="/css/structured-content.css">
+    <link rel="stylesheet" type="text/css" href="/css/search.css">
+    <link rel="stylesheet" type="text/css" href="/css/search-settings.css">
+    <script src="/js/display/search-main.js" type="module"></script>
+
+</head>
+<body hidden>
+<style>
+
+  #sticky-search-header {
+    display: none;
+}
+
+.search-options {
+    display: none;
+}
+</style>
+<div class="content-outer">
+    <div class="content">
+        <div class="content-scroll scrollbar" id="content-scroll">
+            <div id="above-sticky-header">
+                <div class="top-progress-bar-container"><div class="progress-bar-indeterminant" id="progress-indicator" hidden></div></div>
+                <div class="search-header-wrapper">
+                    <div class="search-header">
+                        <div id="intro">
+                            
+                            <a href="search.html">
+                            <h1>Yomitan Quiz</h1>
+                            </a>
+<!-- Deck selector -->
+<div id="deckSelector">
+  <h3 style="margin-top: 0;">📚 デッキ選択</h3>
+  <div id="deckCheckboxes"></div>
+  <button id="applyDeckBtn">✅ 適用</button>
+  <button id="resetDeckBtn">🔄 リセット</button>
+  <div id="activeDeckInfo"></div>
+</div>
+
+<!-- Deck navigation -->
+<div id="quizContainer">
+    <button id="prevDeckBtn">◀️</button>
+    <span id="deckName"></span>
+    <button id="nextDeckBtn">▶️</button>
+
+    <!-- QCM mode toggle -->
+    <label class="mode-toggle">
+    <span class="toggle-switch">
+    <input type="checkbox" id="modeToggle">
+      <span>-mc</span>
+    <span class="toggle-slider"></span>
+    </span>
+    </label>
+
+    <!-- Shuffle toggle -->
+    <label class="mode-toggle">
+    <span class="toggle-switch">
+    <input type="checkbox" id="shuffleToggle" checked>
+      <span>🔀</span>
+    <span class="toggle-slider"></span>
+    </span>
+    </label>
+
+  <!-- Conquest toggle -->
+  <label class="mode-toggle">
+  <span class="toggle-switch">
+    <input type="checkbox" id="conquestToggle">
+      <span>🎯 Conquest</span>
+    <span class="toggle-slider"></span>
+  </span>
+  </label>
+
+<!-- Conquest settings -->
+<div id="conquestSettings">
+  <label>
+    🎯 合格ライン (%):
+    <input type="range" id="conquestThresholdInput" min="50" max="100" value="75">
+    <span id="thresholdValue">75%</span>
+  </label>
+  <br>
+  <label>
+    🎯 間隔 (復習までのカード数):
+    <input type="range" id="conquestSpacingInput" min="1" max="10" value="2">
+    <span id="spacingValue">2x</span>
+  </label>
+</div>
+
+<!-- Range size selector -->
+<div id="rangeSizeSelector">
+  <label>
+    範囲サイズ:
+    <input type="range" id="rangeSizeSlider" min="0" max="5" value="2">
+    <span id="rangeSizeLabel">100</span>
+  </label>
+</div>
+
+<!-- Conquest save/load -->
+<div id="conquestSaveLoad">
+  <button id="saveConquestBtn">💾 セッション保存</button>
+  <button id="loadConquestBtn">📂 セッション読み込み</button>
+</div>
+
+</div>
+
+<!-- Range navigation -->
+<div>
+  <button id="prevRangeBtn">◀️</button>
+  <span id="rangeLabel"></span>
+  <button id="nextRangeBtn">▶️</button>
+  <span id="progressDisplay"></span>
+
+<!-- End of range options -->
+<div id="endOfRangeOptions" style="display: none;">
+  <button id="restartRangeBtn">🔁 もう一度</button>
+  <button id="reviewSkippedBtn">📝 スキップを復習</button>
+</div>
+
+</div>
+
+<!-- Text mode -->
+<div id="textMode">
+  <div id="question"></div>
+  <div id="instructions"></div>
+  <div id="comment"></div>
+  <div id="conquestProgress"></div>
+
+  <input type="text" id="answerInput" placeholder="入力してください..."/>
+  <span id="answerFeedback" style="display: inline-block;"></span>
+  <div id="result"></div>
+</div>
+
+<!-- QCM mode -->
+<div id="choiceMode" style="display: none;">
+  <div id="questionChoice"></div>
+  <div id="choices"></div>
+  <input type="text" id="answerInput2" placeholder="番号を入力してください..."/>
+</div>
+
+<script src="lib/papaparse.min.js"></script>
+<script src="lib/wanakana.min.js"></script>
+<script src="script.js"></script>
+                        </div>
+
+                        <div class="scan-disable">
+                            <div class="search-options">
+                                <div class="search-option" id="search-option-profile-select">
+                                    <span class="profile-select-container"><select class="profile-select" id="profile-select">
+                                        <optgroup label="Default Profile" id="profile-select-option-group"></optgroup>
+                                    </select></span>
+                                </div>
+                                <label class="search-option" id="search-option-clipboard-monitor-container">
+                                    <label class="toggle"><input type="checkbox" id="clipboard-monitor-enable"><span class="toggle-body"><span class="toggle-track"></span><span class="toggle-knob"></span></span></label>
+                                    <span class="search-option-label">Clipboard monitor</span>
+                                </label>
+                                <div class="search-options-right">
+                                    <div class="search-option" id="search-settings-button" data-modal-action="show,search-settings"><span class="icon" data-icon="cog"></span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="search-header-wrapper" id="sticky-search-header">
+                <div class="search-header">
+                    <div class="search-textbox-container">
+                        <textarea id="search-textbox" class="scrollbar" placeholder="Input a term, expression, sentence, or block of text" autocomplete="off" lang="ja" autocapitalize="off" autofocus></textarea>
+                        <button type="button" id="clear-button" class="clear-button"><span class="icon" data-icon="cross"></span></button>
+                        <button type="button" id="search-back-button" class="search-button" hidden><span class="icon" data-icon="left-chevron"></span></button>
+                        <button type="button" id="search-button" class="search-button"><span class="icon" data-icon="magnifying-glass"></span></button>
+                    </div>
+                    <div class="scan-disable scrollbar" id="query-parser-container" hidden>
+                        <div id="query-parser-content" lang="ja"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="content-body" id="content-body">
+                <div class="content-body-inner">
+
+                    <span tabindex="-1" id="content-scroll-focus"></span>
+
+                    <div id="dictionary-entries"></div>
+
+                    <div id="no-results" hidden>
+                        <div class="entry">
+                            <p>No results found.</p>
+                        </div>
+                    </div>
+
+                    <div id="no-dictionaries" hidden>
+                        <div class="entry">
+                            <p>No dictionaries have been installed or enabled yet.</p>
+                            <p><a href="/settings.html#dictionaries" target="_blank">Go to Dictionaries settings.</a></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="content-footer-container1"><div class="content-footer-container2"><div class="content-footer" id="content-footer"></div><div class="scrollbar-spacer scrollbar"></div></div></div>
+    </div>
+
+</div>
+
+<div id="popup-menus"></div>
+
+<!-- Search settings modal -->
+<div id="search-settings-modal" class="modal" tabindex="-1" role="dialog" hidden><div class="modal-content">
+    <div class="modal-header">
+        <div class="modal-title">Search Settings</div>
+    </div>
+    <div class="modal-body">
+        <div class="settings-item" id="query-parser-mode-container" hidden><div class="settings-item-inner">
+            <div class="settings-item-left">
+                <div class="settings-item-label">
+                    Parser
+                </div>
+            </div>
+            <div class="settings-item-right">
+                <select id="query-parser-mode-select"></select>
+            </div>
+        </div></div>
+
+        <div class="settings-item" id="search-option-wanakana"><div class="settings-item-inner">
+            <div class="settings-item-left">
+                <div class="settings-item-label">
+                    Automatic kana conversion
+                </div>
+            </div>
+            <div class="settings-item-right">
+                <label class="toggle"><input type="checkbox" id="wanakana-enable"><span class="toggle-body"><span class="toggle-track"></span><span class="toggle-knob"></span></span></label>
+            </div>
+        </div></div>
+
+
+        <div class="settings-item"><div class="settings-item-inner">
+            <div class="settings-item-left">
+                <div class="settings-item-label">
+                    Sticky search header
+                </div>
+                <div class="settings-item-description">
+                    Search header stays on the page when scrolling down.
+                </div>
+            </div>
+            <div class="settings-item-right">
+                <label class="toggle"><input type="checkbox" id="sticky-header-enable"><span class="toggle-body"><span class="toggle-track"></span><span class="toggle-knob"></span></span></label>
+            </div>
+        </div></div>
+    </div>
+    <div class="modal-footer">
+        <button type="button" data-modal-action="hide">Close</button>
+    </div>
+
+
+</div></div>
+
+</body>
+</html>
