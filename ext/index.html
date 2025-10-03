@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Yomitan Search</title>
+    <title>Yomitan Quiz</title>
     <link rel="icon" type="image/png" href="/images/icon16.png" sizes="16x16">
     <link rel="icon" type="image/png" href="/images/icon19.png" sizes="19x19">
     <link rel="icon" type="image/png" href="/images/icon32.png" sizes="32x32">
@@ -18,19 +18,11 @@
     <link rel="stylesheet" type="text/css" href="/css/search.css">
     <link rel="stylesheet" type="text/css" href="/css/search-settings.css">
     <script src="/js/display/search-main.js" type="module"></script>
+    <link rel="stylesheet" href="style.css">
 
 </head>
 <body hidden>
-<style>
 
-  #sticky-search-header {
-    display: none;
-}
-
-.search-options {
-    display: none;
-}
-</style>
 <div class="content-outer">
     <div class="content">
         <div class="content-scroll scrollbar" id="content-scroll">
@@ -40,35 +32,21 @@
                     <div class="search-header">
                         <div id="intro">
                             
-                            <a href="search.html">
-                            <h1>Yomitan Quiz</h1>
-                            </a>
-<!-- Deck selector -->
-<div id="deckSelector">
-  <h3 style="margin-top: 0;">📚 デッキ選択</h3>
-  <div id="deckCheckboxes"></div>
-  <button id="applyDeckBtn">✅ 適用</button>
-  <button id="resetDeckBtn">🔄 リセット</button>
-  <div id="activeDeckInfo"></div>
-</div>
+    
+    <h3>
+    <a href="search.html">Yomitan Quiz</a>
+    <button id="Selector">📚 選択</button>
+    <!-- Conquest save/load -->
+  <button id="saveConquestBtn">💾 保存</button>
+  <button id="loadConquestBtn">📂 読込</button>
+    </h3>
 
-<!-- Deck navigation -->
-<div id="quizContainer">
     <button id="prevDeckBtn">◀️</button>
-    <span id="deckName"></span>
+    <span id="deckName" style="font-weight: bold;"></span>
     <button id="nextDeckBtn">▶️</button>
 
-    <!-- QCM mode toggle -->
-    <label class="mode-toggle">
-    <span class="toggle-switch">
-    <input type="checkbox" id="modeToggle">
-      <span>-mc</span>
-    <span class="toggle-slider"></span>
-    </span>
-    </label>
-
     <!-- Shuffle toggle -->
-    <label class="mode-toggle">
+    <label class="toggle">
     <span class="toggle-switch">
     <input type="checkbox" id="shuffleToggle" checked>
       <span>🔀</span>
@@ -76,49 +54,59 @@
     </span>
     </label>
 
+    <!-- QCM mode toggle -->
+    <label class="toggle">
+    <span class="toggle-switch">
+    <input type="checkbox" id="modeToggle">
+      <span>🔢</span>
+    <span class="toggle-slider"></span>
+    </span>
+    </label>
+
   <!-- Conquest toggle -->
-  <label class="mode-toggle">
+  <label class="toggle">
   <span class="toggle-switch">
     <input type="checkbox" id="conquestToggle">
-      <span>🎯 Conquest</span>
+      <span>🎯</span>
     <span class="toggle-slider"></span>
   </span>
   </label>
 
-<!-- Conquest settings -->
-<div id="conquestSettings">
+  <div id="conquestSettings">
   <label>
-    🎯 合格ライン (%):
-    <input type="range" id="conquestThresholdInput" min="50" max="100" value="75">
+    合格ライン
+    <input type="range" id="conquestThresholdInput" min="50" max="100" value="75" step="10">
     <span id="thresholdValue">75%</span>
-  </label>
-  <br>
-  <label>
-    🎯 間隔 (復習までのカード数):
-    <input type="range" id="conquestSpacingInput" min="1" max="10" value="2">
-    <span id="spacingValue">2x</span>
+    　間隔
+    <input type="range" id="conquestSpacingInput" min="1" max="50" value="5">
+    <span id="spacingValue">5x</span>
   </label>
 </div>
 
-<!-- Range size selector -->
-<div id="rangeSizeSelector">
-  <label>
-    範囲サイズ:
-    <input type="range" id="rangeSizeSlider" min="0" max="5" value="2">
-    <span id="rangeSizeLabel">100</span>
-  </label>
-</div>
+                            
+<!-- Deck selector -->
+<div id="deckSelector" style="display: none;">
+  <div id="deckCheckboxes"></div>
+  <button id="applyDeckBtn">✅ 適用</button>
+  <button id="resetDeckBtn">🔄 リセット</button>
+  <div id="activeDeckInfo"></div>
 
-<!-- Conquest save/load -->
-<div id="conquestSaveLoad">
-  <button id="saveConquestBtn">💾 セッション保存</button>
-  <button id="loadConquestBtn">📂 セッション読み込み</button>
 </div>
+<!-- Conquest settings -->
 
 </div>
 
 <!-- Range navigation -->
 <div>
+
+<div id="rangeSizeSelector">
+  <label>
+    範囲サイズ
+    <input type="range" id="rangeSizeSlider" min="0" max="5" value="2">
+    <span id="rangeSizeLabel">100</span>
+  </label>
+</div>
+
   <button id="prevRangeBtn">◀️</button>
   <span id="rangeLabel"></span>
   <button id="nextRangeBtn">▶️</button>
@@ -137,7 +125,7 @@
   <div id="question"></div>
   <div id="instructions"></div>
   <div id="comment"></div>
-  <div id="conquestProgress"></div>
+  <div id="conquestProgressText"></div>
 
   <input type="text" id="answerInput" placeholder="入力してください..."/>
   <span id="answerFeedback" style="display: inline-block;"></span>
@@ -145,14 +133,17 @@
 </div>
 
 <!-- QCM mode -->
+
 <div id="choiceMode" style="display: none;">
   <div id="questionChoice"></div>
   <div id="choices"></div>
+<div id="conquestProgressChoice"></div>
   <input type="text" id="answerInput2" placeholder="番号を入力してください..."/>
+  <span id="answerFeedbackChoice" style="display: inline-block;"></span>
 </div>
 
-<script src="dev/lib/papaparse.min.js"></script>
-<script src="dev/lib/wanakana.min.js"></script>
+<script src="lib/papaparse.min.js"></script>
+<script src="lib/wanakana.min.js"></script>
 <script src="script.js"></script>
                         </div>
 
@@ -268,5 +259,4 @@
 </div></div>
 
 </body>
-
 </html>
