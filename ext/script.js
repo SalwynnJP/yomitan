@@ -1,5 +1,5 @@
 // ================================
-// CONFIGURATION & ÉTAT GLOBAL
+// CONFIGURATION & STATE
 // ================================
 
 const CONFIG = {
@@ -28,33 +28,46 @@ const state = {
   isShuffleEnabled: true,
   conquestEnabled: false,
   
-  // Progress
+  // Progress tracking
   correctCount: 0,
   skippedCount: 0,
   originalRange: [],
   currentChoices: [],
   
-  // Conquest
+  // Conquest mode
   conquestQueue: [],
   conquestStats: {},
   conquestThreshold: CONFIG.DEFAULT_CONQUEST_THRESHOLD,
   conquestSpacingModifier: CONFIG.DEFAULT_CONQUEST_SPACING,
-  conquestSessionData: null
+  conquestSessionData: null,
+  conquestShuffleSnapshot: false
 };
 
+let conquestCountdownInterval = null;
+
 // ================================
-// INITIALISATION
+// INITIALIZATION
 // ================================
 
 function init() {
   loadDeckPaths();
   initDeckSelector();
   initEventListeners();
+  initButtonListeners();
   loadCombinedDecks();
+// Masquer le bouton de sauvegarde au démarrage
+  const saveBtn = document.getElementById('saveConquestBtn');
+  if (saveBtn) {
+    saveBtn.style.display = 'none';
+  }
 }
 
 function loadDeckPaths() {
-  const deckPaths = ["decks/jk1.csv", "decks/jk2.csv", "decks/jk3.csv", "decks/jk4.csv", "decks/jk5.csv", "decks/jg1.csv", "decks/jg2.csv", "decks/ono.csv", "decks/yj1.csv", "decks/yj2.csv", "decks/yj3.csv", "decks/jkn2.csv"];
+  const deckPaths = [
+    "decks/jk1.csv", "decks/jk2.csv", "decks/jk3.csv", "decks/jk4.csv", 
+    "decks/jk5.csv", "decks/jg1.csv", "decks/jg2.csv", "decks/ono.csv", 
+    "decks/yj1.csv", "decks/yj2.csv", "decks/yj3.csv", "decks/jkn2.csv"
+  ];
   
   state.decks = deckPaths.map(path => ({
     name: path.split('/').pop().replace('.csv', ''),
@@ -63,7 +76,7 @@ function loadDeckPaths() {
 }
 
 // ================================
-// GESTION MULTI-DECKS
+// DECK MANAGEMENT
 // ================================
 
 function initDeckSelector() {
@@ -85,7 +98,7 @@ function applyDeckSelection() {
     .map(cb => parseInt(cb.dataset.index));
 
   if (state.selectedDeckIndices.length === 0) {
-    alert('⚠️ Sélectionnez au moins un deck !');
+    alert('⚠️ Select at least one deck!');
     return;
   }
 
@@ -106,9 +119,8 @@ async function loadCombinedDecks() {
   state.deckMetadata = [];
 
   const loadPromises = state.selectedDeckIndices.map(async (index) => {
-    // 🔥 MODIFICATION ICI - utiliser chrome.runtime.getURL
     const deckUrl = chrome.runtime.getURL(state.decks[index].path);
-    const response = await fetch (deckUrl);
+    const response = await fetch(deckUrl);
     const csv = await response.text();
     
     return new Promise(resolve => {
@@ -145,26 +157,21 @@ async function loadCombinedDecks() {
 }
 
 function updateDeckDisplay() {
-  const deckNames = state.selectedDeckIndices
-    .map(i => state.decks[i].name)
-    .join(' + ');
+  const deckNames = state.selectedDeckIndices.length > 1 
+    ? '統合'
+    : state.decks[state.selectedDeckIndices[0]].name;
   
   document.getElementById('deckName').textContent = deckNames;
   
   const infoEl = document.getElementById('activeDeckInfo');
   if (infoEl) {
-  infoEl.textContent = `アクティブ: ${state.currentDeck.length} 問題（${state.selectedDeckIndices.length} デッキから）`;
-
+    infoEl.textContent = `Active: ${state.currentDeck.length} questions (${state.selectedDeckIndices.length} decks)`;
   }
 }
 
-// ================================
-// NAVIGATION DECKS (Simple)
-// ================================
-
 function prevDeck() {
   if (state.selectedDeckIndices.length > 1) {
-alert('ℹ️ マルチデッキモードが有効です。セレクターを使用してください。');
+    alert('Multi-deck mode is active. Use the selector.');
     return;
   }
   
@@ -176,7 +183,7 @@ alert('ℹ️ マルチデッキモードが有効です。セレクターを使
 
 function nextDeck() {
   if (state.selectedDeckIndices.length > 1) {
-    alert('ℹ️ Mode multi-deck actif. Utilisez le sélecteur.');
+    alert('Multi-deck mode is active. Use the selector.');
     return;
   }
   
@@ -187,20 +194,20 @@ function nextDeck() {
 }
 
 // ================================
-// GESTION DES RANGES
+// RANGE MANAGEMENT
 // ================================
 
 function generateRanges(totalQuestions) {
   state.ranges = [];
   
-  // Range "all"
+  // "All" range
   state.ranges.push({
     name: 'all',
     start: 0,
     end: totalQuestions - 1
   });
   
-  // Ranges par blocs
+  // Block ranges
   for (let i = 0; i < totalQuestions; i += state.rangeSize) {
     state.ranges.push({
       name: `${i + 1}–${Math.min(i + state.rangeSize, totalQuestions)}`,
@@ -212,7 +219,7 @@ function generateRanges(totalQuestions) {
 
 function updateRangeLabel() {
   const r = state.ranges[state.currentRangeIndex];
-  document.getElementById('rangeLabel').textContent = `Range : ${r.start + 1}–${r.end + 1}`;
+  document.getElementById('rangeLabel').textContent = `${r.start + 1}–${r.end + 1}`;
 }
 
 function prevRange() {
@@ -246,17 +253,27 @@ function updateRangeSizeFromSlider() {
 // ================================
 
 function shuffleCurrentRange() {
-  const r = state.ranges[state.currentRangeIndex];
-  state.originalRange = state.currentDeck.slice(r.start, r.end + 1);
-
-  const shuffled = [...state.originalRange];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  if (state.conquestEnabled) {
+    return;
   }
 
-  for (let i = 0; i < shuffled.length; i++) {
-    state.currentDeck[r.start + i] = shuffled[i];
+  const r = state.ranges[state.currentRangeIndex];
+  state.originalRange = state.currentDeck.slice(r.start, r.end + 1);
+  const originalMetadata = state.deckMetadata.slice(r.start, r.end + 1);
+
+  // Créer des paires [question, metadata]
+  const paired = state.originalRange.map((q, i) => [q, originalMetadata[i]]);
+  
+  // Shuffler les paires
+  for (let i = paired.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [paired[i], paired[j]] = [paired[j], paired[i]];
+  }
+
+  // Réappliquer dans le deck
+  for (let i = 0; i < paired.length; i++) {
+    state.currentDeck[r.start + i] = paired[i][0];
+    state.deckMetadata[r.start + i] = paired[i][1];
   }
 
   state.currentIndex = r.start;
@@ -266,6 +283,10 @@ function shuffleCurrentRange() {
 }
 
 function restoreOriginalRange() {
+  if (state.conquestEnabled) {
+    return;
+  }
+
   const r = state.ranges[state.currentRangeIndex];
   
   if (state.originalRange.length > 0) {
@@ -281,15 +302,21 @@ function restoreOriginalRange() {
 }
 
 // ================================
-// AFFICHAGE QUESTIONS
+// QUESTION DISPLAY
 // ================================
 
 function showQuestion() {
   const r = state.ranges[state.currentRangeIndex];
   
-  // 🚫 En mode Conquest, ne jamais afficher la fin de range
+  // In Conquest mode, never show end of range
   if (!state.conquestEnabled && (state.currentIndex > r.end || state.currentIndex >= state.currentDeck.length)) {
     showEndOfRange();
+    return;
+  }
+
+  // Verify question exists
+  if (!state.currentDeck[state.currentIndex]) {
+    console.error('Question not found at index', state.currentIndex);
     return;
   }
 
@@ -302,6 +329,17 @@ function showQuestion() {
     showMultipleChoiceQuestion(question, correctAnswer);
   } else {
     showTextQuestion(question);
+  }
+
+  // IMPORTANT: Seulement si Conquest est activé
+  if (state.conquestEnabled) {
+    updateConquestProgress();
+  } else {
+    // Vider explicitement si Conquest n'est pas actif
+    const progressElText = document.getElementById('conquestProgressText');
+    const progressElChoice = document.getElementById('conquestProgressChoice');
+    if (progressElText) progressElText.innerHTML = '';
+    if (progressElChoice) progressElChoice.innerHTML = '';
   }
 }
 
@@ -335,15 +373,12 @@ function generateMultipleChoices(correctAnswer, deck) {
   const choices = new Set();
   choices.add(correctAnswer);
 
-  // Identifier le deck d'origine
   const currentQuestionDeck = state.deckMetadata[state.currentIndex]?.deckIndex;
 
-  // Filtrer les questions du même deck
   const sameDeckIndices = state.deckMetadata
     .map((meta, idx) => meta.deckIndex === currentQuestionDeck ? idx : -1)
     .filter(idx => idx !== -1);
 
-  // Pool de candidats (même deck si possible, sinon tous)
   const candidatePool = sameDeckIndices.length >= CONFIG.MC_CHOICES_COUNT 
     ? sameDeckIndices 
     : Array.from({length: deck.length}, (_, i) => i);
@@ -362,7 +397,6 @@ function generateMultipleChoices(correctAnswer, deck) {
     attempts++;
   }
 
-  // Fallback: compléter avec n'importe quelle réponse
   while (choices.size < CONFIG.MC_CHOICES_COUNT) {
     const randomIndex = Math.floor(Math.random() * deck.length);
     const candidate = deck[randomIndex]?.Answers;
@@ -375,8 +409,8 @@ function generateMultipleChoices(correctAnswer, deck) {
 }
 
 function showEndOfRange() {
-  document.getElementById('question').innerHTML = "🎉 Fin de la range.";
-  document.getElementById('questionChoice').innerHTML = "🎉 Fin de la range.";
+  document.getElementById('question').innerHTML = "🎉 End of range.";
+  document.getElementById('questionChoice').innerHTML = "🎉 End of range.";
   document.getElementById('endOfRangeOptions').style.display = 'block';
 }
 
@@ -385,7 +419,7 @@ function formatText(text) {
 }
 
 // ================================
-// VALIDATION RÉPONSES
+// ANSWER VALIDATION
 // ================================
 
 function normalizeAnswer(answer) {
@@ -411,18 +445,16 @@ function checkAnswer(userInput) {
 function handleTextAnswer(input) {
   const r = state.ranges[state.currentRangeIndex];
   
-  // 🚫 En mode Conquest, pas de limite de range
   if (!state.conquestEnabled && (state.currentIndex > r.end || state.currentIndex >= state.currentDeck.length)) {
     return;
   }
 
   const inputValue = input.value.trim();
 
-  // Mode Conquest
+  // Conquest mode
   if (state.conquestEnabled) {
     if (inputValue === '') {
-      // Skip = mauvaise réponse pour le calcul du %
-      processConquestAnswer(false); // 🔴 Skip compte comme échec
+      processConquestAnswer(false);
     } else {
       const isCorrect = checkAnswer(inputValue);
       processConquestAnswer(isCorrect);
@@ -433,7 +465,7 @@ function handleTextAnswer(input) {
     return;
   }
 
-  // Mode Normal - Skip
+  // Normal mode - Skip
   if (inputValue === '') {
     state.currentDeck[state.currentIndex].userAnswer = 'skipped';
     state.skippedCount++;
@@ -444,7 +476,7 @@ function handleTextAnswer(input) {
     return;
   }
 
-  // Mode Normal - Réponse
+  // Normal mode - Answer
   const isCorrect = checkAnswer(inputValue);
   if (isCorrect) {
     state.currentDeck[state.currentIndex].userAnswer = 'correct';
@@ -462,18 +494,16 @@ function handleTextAnswer(input) {
 function handleChoiceAnswer(input) {
   const r = state.ranges[state.currentRangeIndex];
   
-  // 🚫 En mode Conquest, pas de limite de range
   if (!state.conquestEnabled && (state.currentIndex > r.end || state.currentIndex >= state.currentDeck.length)) {
     return;
   }
 
   const inputValue = input.value.trim();
 
-  // Mode Conquest
+  // Conquest mode
   if (state.conquestEnabled) {
     if (inputValue === '') {
-      // Skip = mauvaise réponse pour le calcul du %
-      processConquestAnswer(false); // 🔴 Skip compte comme échec
+      processConquestAnswer(false);
       showConquestQuestion();
       updateProgressDisplay();
       updateConquestProgress();
@@ -501,7 +531,7 @@ function handleChoiceAnswer(input) {
     return;
   }
 
-  // Mode Normal - Skip
+  // Normal mode - Skip
   if (inputValue === '') {
     state.currentDeck[state.currentIndex].userAnswer = 'skipped';
     state.skippedCount++;
@@ -512,7 +542,7 @@ function handleChoiceAnswer(input) {
     return;
   }
 
-  // Mode Normal - Réponse
+  // Normal mode - Answer
   const choiceIndex = parseInt(inputValue, 10) - 1;
   
   if (isNaN(choiceIndex) || !state.currentChoices[choiceIndex]) {
@@ -542,7 +572,12 @@ function handleChoiceAnswer(input) {
 }
 
 function showAnswerFeedback(symbol) {
-  const feedback = document.getElementById('answerFeedback');
+  const feedbackText = document.getElementById('answerFeedback');
+  const feedbackChoice = document.getElementById('answerFeedbackChoice');
+  
+  // Choisir le bon élément selon le mode actif
+  const feedback = state.isChoiceMode ? feedbackChoice : feedbackText;
+  
   feedback.textContent = symbol;
   feedback.style.opacity = 1;
 
@@ -553,10 +588,15 @@ function showAnswerFeedback(symbol) {
 }
 
 // ================================
-// PROGRESSION & STATISTIQUES
+// PROGRESS & STATISTICS
 // ================================
 
 function resetProgress() {
+  if (conquestCountdownInterval) {
+    clearInterval(conquestCountdownInterval);
+    conquestCountdownInterval = null;
+  }
+
   state.correctCount = 0;
   state.skippedCount = 0;
 }
@@ -592,7 +632,7 @@ function reviewSkipped() {
   }
 
   if (skippedIndices.length === 0) {
-    alert("Aucune question skippée à revoir !");
+    alert("No skipped questions to review!");
     return;
   }
 
@@ -609,37 +649,32 @@ function reviewSkipped() {
 }
 
 // ================================
-// MODE CONQUEST
+// CONQUEST MODE
 // ================================
-
-function initializeConquestQueue() {
-  const r = state.ranges[state.currentRangeIndex];
-  state.conquestQueue = [];
-  state.conquestStats = {};
-
-  for (let i = r.start; i <= r.end; i++) {
-    state.conquestQueue.push(i);
-    // Stats: correct = bonnes réponses, total = total de tentatives
-    state.conquestStats[i] = { correct: 0, total: 0 };
-  }
-
-  state.currentIndex = state.conquestQueue[0];
-}
 
 function startConquestMode() {
   toggleConquestLock(true);
+  
+  // Snapshot shuffle state
+  state.conquestShuffleSnapshot = state.isShuffleEnabled;
 
   let countdown = 3;
-  const countdownInterval = setInterval(() => {
+  document.getElementById('question').innerHTML = `⏳ Conquest mode in ${countdown}...`;
+  document.getElementById('questionChoice').innerHTML = `⏳ Conquest mode in ${countdown}...`;
+  conquestCountdownInterval = setInterval(() => {
+    countdown--;
+
     if (countdown > 0) {
       document.getElementById('question').innerHTML = `⏳ Conquest mode in ${countdown}...`;
-      countdown--;
+    document.getElementById('questionChoice').innerHTML = `⏳ Conquest mode in ${countdown}...`;
     } else {
-      clearInterval(countdownInterval);
+      clearInterval(conquestCountdownInterval);
+      conquestCountdownInterval = null;
       initializeConquestQueue();
       
       if (state.conquestQueue.length === 0) {
-        document.getElementById('question').innerHTML = '🏆 Conquest end !';
+        document.getElementById('question').innerHTML = '🏆 Conquest complete!';
+        document.getElementById('questionChoice').innerHTML = '🏆 Conquest complete!';
         toggleConquestLock(false);
         return;
       }
@@ -649,29 +684,6 @@ function startConquestMode() {
   }, 1000);
 }
 
-function showConquestQuestion() {
-  if (state.conquestQueue.length === 0) {
-    document.getElementById('question').innerHTML = '🏆 Conquest terminé !';
-    document.getElementById('questionChoice').innerHTML = '🏆 Conquest terminé !';
-    
-    // 🔄 Réinitialiser les inputs
-    document.getElementById('answerInput').value = '';
-    document.getElementById('answerInput2').value = '';
-    
-    state.conquestEnabled = false;
-    document.getElementById('conquestToggle').checked = false;
-    toggleConquestLock(false);
-    return;
-  }
-
-  state.currentIndex = state.conquestQueue[0];
-  showQuestion();
-  updateConquestProgress();
-}
-
-// À ajouter quelque part lors de l'init du deck
-// Chaque carte a ces champs pour la nouvelle règle
-// { progressPercent: 0, consecutiveWrong: 0, lastWrongStreak: 0, postWrongSuccess: 0, attempts: 0, correct: 0, total: 0 }
 function initializeConquestQueue() {
   const r = state.ranges[state.currentRangeIndex];
   state.conquestQueue = [];
@@ -679,7 +691,6 @@ function initializeConquestQueue() {
 
   for (let i = r.start; i <= r.end; i++) {
     state.conquestQueue.push(i);
-    // Stats initialisées pour la nouvelle logique
     state.conquestStats[i] = {
       progressPercent: 0,
       consecutiveWrong: 0,
@@ -691,38 +702,22 @@ function initializeConquestQueue() {
     };
   }
 
-  state.currentIndex = state.conquestQueue[0];
-}
-
-function startConquestMode() {
-  toggleConquestLock(true);
-
-  let countdown = 3;
-  const countdownInterval = setInterval(() => {
-    if (countdown > 0) {
-      document.getElementById('question').innerHTML = `⏳ Conquest mode in ${countdown}...`;
-      countdown--;
-    } else {
-      clearInterval(countdownInterval);
-      initializeConquestQueue();
-      
-      if (state.conquestQueue.length === 0) {
-        document.getElementById('question').innerHTML = '🏆 Conquest end !';
-        toggleConquestLock(false);
-        return;
-      }
-      
-      showConquestQuestion();
+  // Shuffle queue if shuffle was enabled
+  if (state.conquestShuffleSnapshot) {
+    for (let i = state.conquestQueue.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [state.conquestQueue[i], state.conquestQueue[j]] = [state.conquestQueue[j], state.conquestQueue[i]];
     }
-  }, 1000);
+  }
+
+  state.currentIndex = state.conquestQueue[0];
 }
 
 function showConquestQuestion() {
   if (state.conquestQueue.length === 0) {
-    document.getElementById('question').innerHTML = '🏆 Conquest terminé !';
-    document.getElementById('questionChoice').innerHTML = '🏆 Conquest terminé !';
+    document.getElementById('question').innerHTML = '🏆 Conquest complete!';
+    document.getElementById('questionChoice').innerHTML = '🏆 Conquest complete!';
     
-    // 🔄 Réinitialiser les inputs
     document.getElementById('answerInput').value = '';
     document.getElementById('answerInput2').value = '';
     
@@ -737,7 +732,6 @@ function showConquestQuestion() {
   updateConquestProgress();
 }
 
-// === Nouvelle logique ===
 function ensureConquestStats(index) {
   if (!state.conquestStats[index]) {
     state.conquestStats[index] = {
@@ -769,14 +763,12 @@ function processConquestAnswer(isCorrect) {
     stats.correct++;
 
     if (isFirstAttempt) {
-      // ✅ Bon du premier coup → sortie immédiate
       state.conquestQueue.shift();
       showAnswerFeedback('🎯');
       return;
     }
 
     if (stats.lastWrongStreak > 0) {
-      // Séquence de rattrapage
       stats.postWrongSuccess++;
       const k = stats.lastWrongStreak;
       const j = stats.postWrongSuccess;
@@ -792,7 +784,6 @@ function processConquestAnswer(isCorrect) {
         return;
       }
 
-      // Réinsertion
       const cardIndex = state.conquestQueue.shift();
       const insertPosition = Math.min(
         state.conquestSpacingModifier,
@@ -802,14 +793,12 @@ function processConquestAnswer(isCorrect) {
       showAnswerFeedback('✅');
       return;
     } else {
-      // Pas d’erreurs avant → maîtrise
       stats.progressPercent = 100;
       state.conquestQueue.shift();
       showAnswerFeedback('🎯');
       return;
     }
   } else {
-    // ❌ Mauvaise réponse
     stats.consecutiveWrong++;
     stats.lastWrongStreak = stats.consecutiveWrong;
     stats.postWrongSuccess = 0;
@@ -826,14 +815,20 @@ function processConquestAnswer(isCorrect) {
 }
 
 function updateConquestProgress() {
-  const progressEl = document.getElementById('conquestProgress');
+  const progressElText = document.getElementById('conquestProgressText');
+  const progressElChoice = document.getElementById('conquestProgressChoice');
+
+  // Détecter quel mode est actif
+  const progressEl = state.isChoiceMode ? progressElChoice : progressElText;
 
   if (!state.conquestEnabled) {
-    progressEl.textContent = '';
+    if (progressElText) progressElText.innerHTML = '';
+    if (progressElChoice) progressElChoice.innerHTML = '';
     return;
   }
 
   const idx = state.currentIndex;
+
   ensureConquestStats(idx);
   const stats = state.conquestStats[idx];
 
@@ -845,10 +840,10 @@ function updateConquestProgress() {
   if (!stats || stats.attempts === 0) {
     progressEl.innerHTML = `
 <div style="color: ${overallPercent >= 75 ? 'green' : 'orange'};">
-  📊 全体: ${masteredCards}/${totalCards} (${overallPercent}%)
+  📊 全体: ${masteredCards}/${totalCards} (${overallPercent}%) | 残り ${remaining}
 </div>
-<div style="color: gray;">
-  <!--🆕 このカード: 100%（未挑戦 - 最初の正解で終了）
+<!--<div style="color: gray;">
+  🆕 このカード: 100%（未挑戦 - 最初の正解で終了）
 </div>-->
     `;
     return;
@@ -881,24 +876,21 @@ function updateConquestSpacing(value) {
   document.getElementById('spacingValue').textContent = `${state.conquestSpacingModifier}x`;
 }
 
-
 function toggleConquestLock(lock) {
   const elements = [
     document.getElementById('prevDeckBtn'),
     document.getElementById('nextDeckBtn'),
-    document.getElementById('shuffleToggle')?.closest('.mode-toggle'),
-    document.getElementById('modeToggle')?.closest('.mode-toggle'),
+    document.getElementById('shuffleToggle')?.closest('.toggle'),
+    document.getElementById('modeToggle')?.closest('.toggle'),
     document.getElementById('rangeSizeSelector'),
     document.getElementById('prevRangeBtn'),
     document.getElementById('nextRangeBtn'),
-    document.getElementById('deckSelector'),
     document.getElementById('endOfRangeOptions'),
     document.getElementById('applyDeckBtn'),
     document.getElementById('resetDeckBtn'),
     document.getElementById('conquestSettings'),
-    document.getElementById('loadConquestBtn'),
-    document.getElementById('restartRangeBtn'),
-    document.getElementById('reviewSkippedBtn')
+    document.getElementById('loadConquestBtn')
+    
   ];
 
   elements.forEach(el => {
@@ -910,20 +902,24 @@ function toggleConquestLock(lock) {
     }
   });
 
-  // Hide progress display in conquest mode
   const progressDisplay = document.getElementById('progressDisplay');
   if (progressDisplay) {
     progressDisplay.style.display = lock ? 'none' : '';
   }
+
+    // Afficher le bouton de sauvegarde uniquement en mode Conquest
+  const saveBtn = document.getElementById('saveConquestBtn');
+  if (saveBtn) {
+    saveBtn.style.display = lock ? '' : 'none';
+  }
 }
 
-
 // ================================
-// SAUVEGARDE / CHARGEMENT CONQUEST
+// CONQUEST SAVE/LOAD
 // ================================
 
 function saveConquestPrompt() {
-  const name = prompt('Nom de la session:');
+  const name = prompt('Session name:');
   if (!name) return;
 
   state.conquestSessionData = {
@@ -934,7 +930,8 @@ function saveConquestPrompt() {
     threshold: state.conquestThreshold,
     spacing: state.conquestSpacingModifier,
     deckIndices: [...state.selectedDeckIndices],
-    rangeIndex: state.currentRangeIndex
+    rangeIndex: state.currentRangeIndex,
+    shuffleSnapshot: state.conquestShuffleSnapshot
   };
 
   const dataStr = JSON.stringify(state.conquestSessionData, null, 2);
@@ -946,7 +943,33 @@ function saveConquestPrompt() {
   a.click();
   URL.revokeObjectURL(url);
 
-  alert(`✅ Session "${name}" exportée !`);
+  alert(`✅ Session "${name}" exported!`);
+
+// Décocher et désactiver Conquest
+  state.conquestEnabled = false;
+  document.getElementById('conquestToggle').checked = false;
+  
+  // Nettoyer l'état
+  state.conquestQueue = [];
+  state.conquestStats = {};
+  
+  // Nettoyer l'affichage
+  const progressElText = document.getElementById('conquestProgressText');
+  const progressElChoice = document.getElementById('conquestProgressChoice');
+  if (progressElText) progressElText.innerHTML = '';
+  if (progressElChoice) progressElChoice.innerHTML = '';
+  
+  toggleConquestLock(false);
+  showQuestion();
+
+
+
+
+
+
+
+
+
 }
 
 function loadConquestPrompt() {
@@ -968,11 +991,11 @@ function loadConquestPrompt() {
         state.conquestThreshold = data.threshold;
         state.conquestSpacingModifier = data.spacing;
         state.conquestSessionData = data;
+        state.conquestShuffleSnapshot = data.shuffleSnapshot || false;
 
         if (data.deckIndices) {
           state.selectedDeckIndices = data.deckIndices;
           
-          // Mettre à jour les checkboxes
           document.querySelectorAll('.deck-checkbox').forEach((cb, i) => {
             cb.checked = data.deckIndices.includes(i);
           });
@@ -988,10 +1011,10 @@ function loadConquestPrompt() {
           document.getElementById('conquestToggle').checked = true;
           toggleConquestLock(true);
           showConquestQuestion();
-          alert(`✅ Session "${data.name}" chargée !`);
+          alert(`✅ Session "${data.name}" loaded!`);
         }
       } catch (err) {
-        alert('❌ Fichier invalide !');
+        alert('❌ Invalid file!');
         console.error(err);
       }
     };
@@ -1006,27 +1029,23 @@ function loadConquestPrompt() {
 // ================================
 
 function initEventListeners() {
-  // Range size slider
   const rangeSizeSlider = document.getElementById('rangeSizeSlider');
   if (rangeSizeSlider) {
     rangeSizeSlider.addEventListener('input', updateRangeSizeFromSlider);
   }
 
-  // Text mode input
   document.getElementById('answerInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       handleTextAnswer(e.target);
     }
   });
 
-  // Choice mode input
   document.getElementById('answerInput2').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       handleChoiceAnswer(e.target);
     }
   });
 
-  // Mode toggle
   document.getElementById('modeToggle').addEventListener('click', () => {
     state.isChoiceMode = !state.isChoiceMode;
     document.getElementById('textMode').style.display = state.isChoiceMode ? 'none' : 'block';
@@ -1034,8 +1053,13 @@ function initEventListeners() {
     showQuestion();
   });
 
-  // Shuffle toggle
   document.getElementById('shuffleToggle').addEventListener('change', (e) => {
+    if (state.conquestEnabled) {
+      e.target.checked = !e.target.checked;
+      alert('⚠️ Cannot change shuffle during Conquest mode');
+      return;
+    }
+    
     state.isShuffleEnabled = e.target.checked;
     if (state.isShuffleEnabled) {
       shuffleCurrentRange();
@@ -1044,63 +1068,73 @@ function initEventListeners() {
     }
   });
 
-  // Conquest toggle
   document.getElementById('conquestToggle').addEventListener('change', (e) => {
     state.conquestEnabled = e.target.checked;
     if (state.conquestEnabled) {
       startConquestMode();
     } else {
+      if (conquestCountdownInterval) {
+        clearInterval(conquestCountdownInterval);
+        conquestCountdownInterval = null;
+      }
+
+    // Reset les deux éléments de progression
+    const progressElText = document.getElementById('conquestProgressText');
+    const progressElChoice = document.getElementById('conquestProgressChoice');
+    if (progressElText) progressElText.innerHTML = '';
+    if (progressElChoice) progressElChoice.innerHTML = '';
+
+      //document.getElementById('conquestProgress').textContent = '';
       toggleConquestLock(false);
+      showQuestion();
     }
   });
 
-  // Conquest threshold
   document.getElementById('conquestThresholdInput').addEventListener('input', (e) => {
     updateConquestThreshold(e.target.value);
   });
 
-  // Conquest spacing
   document.getElementById('conquestSpacingInput').addEventListener('input', (e) => {
     updateConquestSpacing(e.target.value);
   });
 }
 
-// ================================
-// EVENT LISTENERS - BOUTONS
-// ================================
-
 function initButtonListeners() {
-  // Deck selection
   document.getElementById('applyDeckBtn')?.addEventListener('click', applyDeckSelection);
   document.getElementById('resetDeckBtn')?.addEventListener('click', resetDeckSelection);
   
-  // Deck navigation
   document.getElementById('prevDeckBtn')?.addEventListener('click', prevDeck);
   document.getElementById('nextDeckBtn')?.addEventListener('click', nextDeck);
   
-  // Range navigation
   document.getElementById('prevRangeBtn')?.addEventListener('click', prevRange);
   document.getElementById('nextRangeBtn')?.addEventListener('click', nextRange);
   
-  // End of range
   document.getElementById('restartRangeBtn')?.addEventListener('click', restartCurrentRange);
   document.getElementById('reviewSkippedBtn')?.addEventListener('click', reviewSkipped);
   
-  // Conquest save/load
   document.getElementById('saveConquestBtn')?.addEventListener('click', saveConquestPrompt);
   document.getElementById('loadConquestBtn')?.addEventListener('click', loadConquestPrompt);
 }
 
 // ================================
-// INITIALISATION
+// DECK SELECTOR TOGGLE
 // ================================
 
-function init() {
-  loadDeckPaths();
-  initDeckSelector();
-  initEventListeners();
-  initButtonListeners(); // ✅ AJOUTER CETTE LIGNE
-  loadCombinedDecks();
-}
+const selectorButton = document.getElementById("Selector");
+const deckSelector = document.getElementById('deckSelector');
+
+selectorButton.addEventListener("click", () => {
+  if (deckSelector.style.display === "none") {
+    deckSelector.style.display = "block";
+    selectorButton.textContent = "📚 隠す";
+  } else {
+    deckSelector.style.display = "none";
+    selectorButton.textContent = "📚 選択";
+  }
+});
+
+// ================================
+// START APPLICATION
+// ================================
 
 init();
